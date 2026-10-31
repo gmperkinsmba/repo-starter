@@ -1,18 +1,18 @@
-# Secure Repo Factory
+# Repo Starter
 
 **First principle:** Keep project setup easy to review and safe to repeat.
 
-Secure Repo Factory previews a generic repository starter. You can download it as a ZIP or create it in a local folder you choose. The starter includes a README, CONTEXT, MIT license, `.gitignore`, and a SHA-256 file manifest. It does not create a GitHub repository or push code.
+Preview and create a local repository with starter files. You can download it as a ZIP or create it in a local folder you choose. The starter includes a README, CONTEXT, MIT license, `.gitignore`, and a SHA-256 file manifest. It does not create a GitHub repository or push code.
 
 ## Run
 
-Open `~/Applications/Secure Repo Factory.app` in Finder. The app bundles Python and starts its loopback service when the window opens. No separate Python install, browser tab, or manual server command is needed. Generated projects are saved under `~/.secure-repo-factory/generated/`.
+Open `~/Applications/Repo Starter.app` in Finder. The app bundles Python and starts its loopback service when the window opens. No Python install is needed. You do not need a browser tab or server command. Generated projects are saved under `~/.secure-repo-factory/generated/`.
 
-The installed app is unsigned. macOS may ask you to confirm the first launch in Privacy & Security. Quit with Command-Q or close the window. To uninstall, quit the app and move only `~/Applications/Secure Repo Factory.app` to Trash. Generated projects remain in the separate runtime folder.
+The installed app is unsigned. macOS may ask you to confirm the first launch in Privacy & Security. Quit with Command-Q or close the window. To uninstall, quit the app and move only `~/Applications/Repo Starter.app` to Trash. Generated projects remain in the separate runtime folder.
 
 **Browser alternative**
 
-The source browser mode uses Python 3.10 or newer and the standard library. Linux browser compatibility is not validated by this desktop delivery.
+The source browser mode uses Python 3.10 or newer and the standard library. I did not test browser mode on Linux.
 
 Python 3.10 or newer is required. The app uses only the Python standard library.
 
@@ -33,7 +33,7 @@ uv pip install --python .desktop-venv/bin/python -r requirements-desktop.lock.tx
 .desktop-venv/bin/python install_desktop.py
 ```
 
-The build emits `dist/Secure Repo Factory.app` and refuses to replace an app without its ownership marker. Native builds target macOS; Linux builds are not supported or tested here.
+The build emits `dist/Repo Starter.app` and refuses to replace an app without its ownership marker. Native builds target macOS; Linux builds are not supported or tested here.
 
 ## Use the CLI
 
@@ -63,11 +63,11 @@ Review the generated files before use. This version has no database and stores n
 python3 -m unittest -v
 ```
 
-Tests cover dry runs and safe reruns. They scan for fake credentials. They check edited-file verification, ZIP contents, request boundaries, bad slugs, and omitted agent configuration.
+Tests check dry runs and safe reruns. They scan for fake credentials. They check edited files and ZIP contents. They check request rules and bad slugs. They check that output omits agent settings.
 
 ## Limits
 
-The app does not initialize Git or create remote repositories. It cannot change their visibility or publish files. The secret scan catches common token patterns, but may miss other secrets. Review generated files and run your own checks before publishing.
+The app does not start Git or make remote repos. It cannot change repo access or publish files. The secret scan finds common token patterns. It may miss other secrets. Check generated files and run your own tests before you publish.
 
 ## License
 

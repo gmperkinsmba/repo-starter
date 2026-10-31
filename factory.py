@@ -199,7 +199,7 @@ def make_server(host="127.0.0.1", port=8312):
             self.server_name = "127.0.0.1"
             self.server_port = self.socket.getsockname()[1]
     if host != "127.0.0.1":
-        raise ValueError("Secure Repo Factory only binds to loopback")
+        raise ValueError("Repo Starter only binds to loopback")
     server = LocalThreadingHTTPServer((host, port), Handler)
     server.request_token = secrets.token_urlsafe(24)
     return server
@@ -207,7 +207,7 @@ def make_server(host="127.0.0.1", port=8312):
 
 def serve():
     server = make_server(port=8312)
-    print(f"Secure Repo Factory: http://127.0.0.1:{server.server_port}", flush=True)
+    print(f"Repo Starter: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

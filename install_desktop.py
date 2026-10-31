@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install only an owned Secure Repo Factory bundle without deleting prior copies."""
+"""Install only an owned Repo Starter bundle without deleting prior copies."""
 from __future__ import annotations
 
 import plistlib
