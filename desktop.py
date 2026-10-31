@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native macOS shell for Secure Repo Factory."""
+"""Native macOS shell for Repo Starter."""
 from __future__ import annotations
 
 import threading
@@ -19,7 +19,7 @@ def run() -> None:
         origin = f"http://127.0.0.1:{server.server_port}"
         install_policy(origin)
         webview.create_window(
-            "Secure Repo Factory",
+            "Repo Starter",
             f"{origin}/?desktop=1",
             width=1080,
             height=760,
@@ -41,8 +41,8 @@ if __name__ == "__main__":
         import AppKit
 
         alert = AppKit.NSAlert.alloc().init()
-        alert.setMessageText_("Secure Repo Factory could not start")
-        alert.setInformativeText_("The local app failed to open. Restart Secure Repo Factory and try again.")
+        alert.setMessageText_("Repo Starter could not start")
+        alert.setInformativeText_("The local app failed to open. Restart Repo Starter and try again.")
         alert.addButtonWithTitle_("OK")
         alert.runModal()
         raise SystemExit(1)
