@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="request-token" content="__TOKEN__"><title>Secure Repo Factory</title>
+  <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="wordmark" href="#top" aria-label="Secure Repo Factory home"><span class="mark">R</span> REPO FACTORY</a><span class="local"><i></i> LOCAL SESSION</span></header>
+  <main id="top">
+    <section class="hero enter">
+      <div class="eyebrow"><span>POLICY FIRST</span><span class="line"></span><span>REVIEW BEFORE WRITE</span></div>
+      <h1>Secure Repo Factory</h1>
+      <p class="intro">Preview and create a safe repository starter with a README, context, license, ignore rules, and integrity manifest.</p>
+  <div class="hero-note"><span class="note-icon">↳</span><span>Preview first. Generate in a private local sandbox. No GitHub connection.</span></div>
+    </section>
+
+    <section class="workspace enter" aria-label="Repository starter builder">
+      <div class="builder panel">
+        <div class="panel-head"><div><span class="overline">NEW STARTER</span><h2>Shape the first commit</h2></div><span class="step">LOCAL · PRIVATE</span></div>
+        <form id="factory-form">
+          <label for="slug">Repository name</label>
+          <div class="input-wrap"><span class="input-prefix">~/</span><input id="slug" name="slug" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="quiet-signal" autocomplete="off" required><span class="suffix">.git</span></div>
+          <p class="hint">Lowercase letters, numbers, and single hyphens.</p>
+          <div class="principle"><span class="principle-mark">✳</span><div><b>First principle</b><p>Keep project setup reviewable and safe to repeat.</p></div></div>
+          <button class="button primary" id="preview-btn" type="submit"><span>Preview file plan</span><span aria-hidden="true">↗</span></button>
+        </form>
+        <div class="divider"><span>AFTER REVIEW</span></div>
+        <div class="actions">
+          <button class="button secondary" id="zip-btn" type="button"><span>Download ZIP</span><span aria-hidden="true">↓</span></button>
+          <button class="button secondary" id="generate-btn" type="button"><span>Generate locally</span><span aria-hidden="true">⌘</span></button>
+        </div>
+          <p class="hint">The app uses `~/.secure-repo-factory/generated/`. Unknown or edited files stay untouched.</p>
+          <details class="settings"><summary>Starter settings</summary><div class="settings-body"><p>Data choice: no database. License: MIT. First principle: review before repeat.</p><p>Settings contain no tokens and are not saved. The output folder stays on this device.</p></div></details>
+      </div>
+
+      <div class="manifest panel" aria-live="polite">
+        <div class="panel-head"><div><span class="overline">DRY RUN MANIFEST</span><h2>Files in the starter</h2></div><span class="status-pill" id="status-pill"><i></i> WAITING</span></div>
+        <p class="manifest-copy">Choose a name and preview its exact file set. Fingerprints check integrity after edits.</p>
+        <div class="file-list" id="file-list">
+          <div class="empty-state"><span class="empty-glyph">⌁</span><p>Your plan will appear here.</p><span>Nothing is written during preview.</span></div>
+        </div>
+        <div class="manifest-foot"><span>SHA-256</span><span>INTEGRITY ONLY · NOT ENCRYPTION</span></div>
+      </div>
+    </section>
+
+    <section class="below enter">
+      <div class="verify panel"><div><span class="overline">CHECK A STARTER</span><h2>Did a file change?</h2><p>Run a local integrity check against the private generated folder.</p></div><button class="button outline" id="verify-btn" type="button">Verify folder <span>↗</span></button></div>
+      <div class="limits"><span class="overline">BUILT FOR A SAFE FIRST STEP</span><p>Four useful files. No database, runtime, or external service. Review the templates before you publish anything.</p><div class="limit-tags"><span>README</span><span>CONTEXT</span><span>MIT LICENSE</span><span>.GITIGNORE</span></div></div>
+    </section>
+    <div id="message" class="message" role="status" aria-live="polite"></div>
+  </main>
+  <footer><span>SECURE REPO FACTORY <span class="footer-dot">·</span> VERSION 0.1</span><span>MADE FOR DELIBERATE STARTS</span></footer>
+</body>
+</html>
