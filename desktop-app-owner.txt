@@ -1,0 +1,3 @@
+Secure Repo Factory desktop bundle
+io.github.gmperkinsmba.secure-repo-factory
+local-build-owner-marker-v1

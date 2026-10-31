@@ -8,6 +8,7 @@ import io
 import json
 import re
 import secrets
+import sys
 import threading
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", ROOT))
 SANDBOX = Path.home() / ".secure-repo-factory" / "generated"
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_BODY = 8192
@@ -132,6 +134,9 @@ def verify(directory: str) -> dict:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "RepoFactory/1.0"
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(3)
     def log_message(self, fmt, *args):
         return
     def _send(self, status, body, kind="application/json; charset=utf-8"):
@@ -140,16 +145,20 @@ class Handler(BaseHTTPRequestHandler):
     def _state_allowed(self):
         host = self.headers.get("Host", "")
         origin = self.headers.get("Origin", "")
-        return host in ("127.0.0.1:8312", "localhost:8312") and origin in ("http://127.0.0.1:8312", "http://localhost:8312") and self.headers.get("X-Factory-Request") == self.server.request_token
+        port = self.server.server_port
+        return host in (f"127.0.0.1:{port}", f"localhost:{port}") and origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}") and secrets.compare_digest(self.headers.get("X-Factory-Request", ""), self.server.request_token)
     def do_GET(self):
-        if self.headers.get("Host") not in ("127.0.0.1:8312", "localhost:8312"):
+        port = self.server.server_port
+        if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):
             return self._send(403, "Forbidden", "text/plain")
         path = urlparse(self.path).path
         if path == "/":
-            page = (ROOT / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", self.server.request_token)
+            page = (RESOURCE_ROOT / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", self.server.request_token)
+            if "desktop=1" in self.path:
+                page = page.replace("<body", '<body class="native-shell"', 1)
             return self._send(200, page, "text/html; charset=utf-8")
-        if path == "/app.css": return self._send(200, (ROOT / "app.css").read_bytes(), "text/css; charset=utf-8")
-        if path == "/app.js": return self._send(200, (ROOT / "app.js").read_bytes(), "text/javascript; charset=utf-8")
+        if path == "/app.css": return self._send(200, (RESOURCE_ROOT / "app.css").read_bytes() + b"\nbody.native-shell .hero{padding-top:28px}body.native-shell .hero h1{font-size:34px;letter-spacing:-1px}body.native-shell .workspace,body.native-shell .below{animation:none}\n", "text/css; charset=utf-8")
+        if path == "/app.js": return self._send(200, (RESOURCE_ROOT / "app.js").read_bytes(), "text/javascript; charset=utf-8")
         return self._send(404, "Not found", "text/plain")
     def do_POST(self):
         if not self._state_allowed(): return self._send(403, json.dumps({"error":"Local request check failed."}))
@@ -181,11 +190,30 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, json.dumps({"error":message}))
 
 
-def serve():
-    server = ThreadingHTTPServer(("127.0.0.1", 8312), Handler)
+def make_server(host="127.0.0.1", port=8312):
+    class LocalThreadingHTTPServer(ThreadingHTTPServer):
+        daemon_threads = True
+        def server_bind(self):
+            import socketserver
+            socketserver.TCPServer.server_bind(self)
+            self.server_name = "127.0.0.1"
+            self.server_port = self.socket.getsockname()[1]
+    if host != "127.0.0.1":
+        raise ValueError("Secure Repo Factory only binds to loopback")
+    server = LocalThreadingHTTPServer((host, port), Handler)
     server.request_token = secrets.token_urlsafe(24)
-    print("Secure Repo Factory: http://127.0.0.1:8312", flush=True)
-    server.serve_forever()
+    return server
+
+
+def serve():
+    server = make_server(port=8312)
+    print(f"Secure Repo Factory: http://127.0.0.1:{server.server_port}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
 
 
 def main():

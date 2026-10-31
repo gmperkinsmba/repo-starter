@@ -2,6 +2,7 @@ import json
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 import zipfile
@@ -89,11 +90,13 @@ class FactoryTests(unittest.TestCase):
 class BoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = factory.ThreadingHTTPServer(("127.0.0.1", 0), factory.Handler)
+        with patch("socket.getfqdn", side_effect=AssertionError("Reverse DNS must not block startup")):
+            cls.server = factory.make_server(port=0)
         cls.server.request_token = "test-token"
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.url = f"http://127.0.0.1:{cls.server.server_port}"
+        cls.headers = {"X-Factory-Request":"test-token", "Host":f"127.0.0.1:{cls.server.server_port}", "Origin":cls.url}
 
     @classmethod
     def tearDownClass(cls):
@@ -108,19 +111,29 @@ class BoundaryTests(unittest.TestCase):
             return error.code
 
     def test_missing_header_rejected(self):
-        self.assertEqual(self.post({"Host":"127.0.0.1:8312", "Origin":"http://127.0.0.1:8312"}), 403)
+        self.assertEqual(self.post({"Host":f"127.0.0.1:{self.server.server_port}", "Origin":self.url}), 403)
+
+    def test_native_mode_uses_bundled_page_and_compact_styles(self):
+        with urllib.request.urlopen(self.url + "/?desktop=1", timeout=3) as response:
+            page=response.read().decode()
+            self.assertEqual(response.status,200)
+        self.assertIn('class="native-shell"',page)
+        self.assertIn('content="test-token"',page)
+        with urllib.request.urlopen(self.url + "/app.css", timeout=3) as response:
+            style=response.read().decode()
+        self.assertIn("body.native-shell",style)
 
     def test_host_and_origin_rejected(self):
-        base = {"X-Factory-Request":"test-token", "Host":"127.0.0.1:8312", "Origin":"http://127.0.0.1:8312"}
+        base = self.headers
         self.assertEqual(self.post({**base,"Host":"evil.example"}), 403)
         self.assertEqual(self.post({**base,"Origin":"https://evil.example"}), 403)
 
     def test_invalid_slug_rejected(self):
-        headers = {"X-Factory-Request":"test-token", "Host":"127.0.0.1:8312", "Origin":"http://127.0.0.1:8312"}
+        headers = self.headers
         self.assertEqual(self.post(headers, b'{"slug":"../outside"}'), 400)
 
     def test_non_object_json_rejected(self):
-        headers = {"X-Factory-Request":"test-token", "Host":"127.0.0.1:8312", "Origin":"http://127.0.0.1:8312"}
+        headers = self.headers
         self.assertEqual(self.post(headers, b'[]'), 400)
         self.assertEqual(self.post(headers, b'null'), 400)
 

@@ -13,7 +13,11 @@ exports/
 *.sqlite
 *.sqlite3
 .venv/
+.desktop-venv/
 venv/
+build/
+dist/
+*.app/
 __pycache__/
 build/
 dist/

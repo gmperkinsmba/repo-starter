@@ -4,7 +4,15 @@
 
 Secure Repo Factory previews a generic repository starter. You can download it as a ZIP or create it in a local folder you choose. The starter includes a README, CONTEXT, MIT license, `.gitignore`, and a SHA-256 file manifest. It does not create a GitHub repository or push code.
 
-## Run the web app
+## Run
+
+Open `~/Applications/Secure Repo Factory.app` in Finder. The app bundles Python and starts its loopback service when the window opens. No separate Python install, browser tab, or manual server command is needed. Generated projects are saved under `~/.secure-repo-factory/generated/`.
+
+The installed app is unsigned. macOS may ask you to confirm the first launch in Privacy & Security. Quit with Command-Q or close the window. To uninstall, quit the app and move only `~/Applications/Secure Repo Factory.app` to Trash. Generated projects remain in the separate runtime folder.
+
+**Browser alternative**
+
+The source browser mode uses Python 3.10 or newer and the standard library. Linux browser compatibility is not validated by this desktop delivery.
 
 Python 3.10 or newer is required. The app uses only the Python standard library.
 
@@ -13,6 +21,19 @@ python3 factory.py serve
 ```
 
 Open <http://127.0.0.1:8312>. The server listens on loopback only. Stop it with Ctrl+C. The web app writes only under `~/.secure-repo-factory/generated/`. It uses private directory permissions. Preview shows each template file before writing it.
+
+**Build from source**
+
+On macOS, use Python 3.12 with the pinned desktop requirements:
+
+```sh
+uv venv .desktop-venv --python 3.12
+uv pip install --python .desktop-venv/bin/python -r requirements-desktop.lock.txt
+.desktop-venv/bin/python build_desktop.py
+.desktop-venv/bin/python install_desktop.py
+```
+
+The build emits `dist/Secure Repo Factory.app` and refuses to replace an app without its ownership marker. Native builds target macOS; Linux builds are not supported or tested here.
 
 ## Use the CLI
 
