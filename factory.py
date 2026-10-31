@@ -8,6 +8,8 @@ import io
 import json
 import re
 import secrets
+import os
+import stat
 import sys
 import threading
 import zipfile
@@ -20,6 +22,9 @@ RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", ROOT))
 SANDBOX = Path.home() / ".secure-repo-factory" / "generated"
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_BODY = 8192
+MAX_EXISTING_FILE_BYTES = 16 * 1024 * 1024
+HASH_CHUNK_BYTES = 128 * 1024
+MAX_MANIFEST_BYTES = 64 * 1024
 FILES = {
     "README.md": "# {name}\n\n> First principle: Keep project setup reviewable and safe to repeat.\n\nA small starter repository with inspectable defaults.\n\n## Start\n\nReview this file and `CONTEXT.md`, then add your project code.\n\n## Data\n\nNo data store is created. Keep real data outside this repository unless you add and review a specific storage plan.\n",
     "CONTEXT.md": "# Project context\n\n- Purpose: Record the project's domain and invariants.\n- Data: No database or user data is included.\n- Changes: Review generated files before use.\n",
@@ -27,6 +32,67 @@ FILES = {
     ".gitignore": "# Local runtime and secrets\n.env\n.env.*\n!.env.example\n*.pem\n*.key\nsecrets/\n.runtime/\n*.db\n*.sqlite\n*.sqlite3\nuploads/\nexports/\n.venv/\nvenv/\n__pycache__/\nbuild/\ndist/\ngraphify-out/\n",
 }
 SECRET_RE = re.compile(r"(?i)(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|api[_-]?key\s*[:=]\s*['\"]?[A-Za-z0-9_\-/+]{16,})")
+
+
+def hash_regular_file(path: Path, max_bytes: int = MAX_EXISTING_FILE_BYTES) -> tuple[str, bool]:
+    """Hash a bounded regular file without following links or buffering the file."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(path, flags)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError("Existing file is not a regular file.")
+        if before.st_size > max_bytes:
+            raise ValueError("Existing file exceeds the 16 MiB hashing limit.")
+        digest = hashlib.sha256()
+        carry = ""
+        secret_like = False
+        count = 0
+        while True:
+            chunk = os.read(fd, HASH_CHUNK_BYTES)
+            if not chunk:
+                break
+            count += len(chunk)
+            if count > max_bytes:
+                raise ValueError("Existing file exceeds the 16 MiB hashing limit.")
+            digest.update(chunk)
+            decoded = carry + chunk.decode("utf-8", errors="replace")
+            if SECRET_RE.search(decoded):
+                secret_like = True
+            carry = decoded[-512:]
+        after = os.fstat(fd)
+        named_after = os.stat(path, follow_symlinks=False)
+        identity_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+        identity_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+        if identity_before != identity_after or (named_after.st_dev, named_after.st_ino) != (after.st_dev, after.st_ino) or count != after.st_size:
+            raise ValueError("Existing file changed while being read.")
+        return digest.hexdigest(), secret_like
+    finally:
+        os.close(fd)
+
+
+def read_bounded_regular_file(path: Path, max_bytes: int = MAX_MANIFEST_BYTES) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(path, flags)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > max_bytes:
+            raise ValueError("Manifest must be a regular file of at most 64 KiB.")
+        chunks = []
+        count = 0
+        while True:
+            chunk = os.read(fd, min(HASH_CHUNK_BYTES, max_bytes + 1 - count))
+            if not chunk: break
+            count += len(chunk)
+            if count > max_bytes: raise ValueError("Manifest exceeds the 64 KiB read limit.")
+            chunks.append(chunk)
+        after = os.fstat(fd)
+        named_after = os.stat(path, follow_symlinks=False)
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) or (named_after.st_dev, named_after.st_ino) != (after.st_dev, after.st_ino) or count != after.st_size:
+            raise ValueError("Manifest changed while being read.")
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 def safe_slug(value: str) -> str:
@@ -71,10 +137,10 @@ def generate(slug: str, destination: str, dry_run: bool = False) -> dict:
     target.mkdir(parents=True, exist_ok=True)
     manifest_path = target / ".factory-manifest.json"
     old = {}
-    if manifest_path.exists():
+    if manifest_path.exists() and not manifest_path.is_symlink():
         try:
-            old = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            old = json.loads(read_bounded_regular_file(manifest_path).decode("utf-8"))
+        except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
             old = {}
     actions = {}
     for name, body in FILES.items():
@@ -84,7 +150,7 @@ def generate(slug: str, destination: str, dry_run: bool = False) -> dict:
             actions[name] = "symbolic-link; preserved"
             continue
         if path.exists():
-            current = hashlib.sha256(path.read_bytes()).hexdigest()
+            current, _ = hash_regular_file(path)
             if current == digest:
                 actions[name] = "unchanged"
             elif old.get("files", {}).get(name) == current:
@@ -106,8 +172,8 @@ def generate(slug: str, destination: str, dry_run: bool = False) -> dict:
 def verify(directory: str) -> dict:
     target = Path(directory).expanduser().resolve()
     try:
-        manifest = json.loads((target / ".factory-manifest.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        manifest = json.loads(read_bounded_regular_file(target / ".factory-manifest.json").decode("utf-8"))
+    except (OSError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
         raise ValueError("Manifest is missing or invalid.") from exc
     if manifest.get("schema") != 1 or manifest.get("files") != manifest_for(target.name).get("files") or manifest.get("slug") != target.name:
         raise ValueError("Manifest schema is invalid.")
@@ -116,15 +182,18 @@ def verify(directory: str) -> dict:
         if name not in FILES:
             checks[name] = "unknown manifest entry"
             continue
-        path = (target / name).resolve()
-        if target not in path.parents or not path.is_file():
+        path = target / name
+        if path.is_symlink() or not path.is_file():
             checks[name] = "missing"
             continue
-        raw = path.read_bytes()
-        if SECRET_RE.search(raw.decode("utf-8", errors="replace")):
+        try:
+            actual, secret_like = hash_regular_file(path)
+        except (OSError, ValueError) as exc:
+            checks[name] = "unsafe or over limit" if "limit" in str(exc) or "regular file" in str(exc) else "changed while reading"
+            continue
+        if secret_like:
             checks[name] = "secret-like content"
             continue
-        actual = hashlib.sha256(raw).hexdigest()
         if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
             checks[name] = "invalid digest"
         else:

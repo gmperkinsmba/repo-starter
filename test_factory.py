@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -13,6 +14,49 @@ import factory
 
 
 class FactoryTests(unittest.TestCase):
+    def test_hash_regular_file_is_bounded_and_rejects_symlinks(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+            path = Path(tmp) / "bounded.txt"
+            path.write_bytes(b"A" * (factory.MAX_EXISTING_FILE_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "16 MiB"):
+                factory.hash_regular_file(path)
+            target = Path(outside) / "target.txt"
+            target.write_text("safe")
+            link = Path(tmp) / "link.txt"
+            link.symlink_to(target)
+            with self.assertRaises(OSError):
+                factory.hash_regular_file(link)
+
+    def test_hash_regular_file_detects_mutation_during_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "changing.txt"
+            path.write_bytes(b"A" * 300_000)
+            real_read = os.read
+            calls = 0
+            def mutate_after_first_chunk(fd, size):
+                nonlocal calls
+                chunk = real_read(fd, size)
+                calls += 1
+                if calls == 1:
+                    path.write_bytes(b"B" * 300_000)
+                return chunk
+            with patch("factory.os.read", side_effect=mutate_after_first_chunk):
+                with self.assertRaisesRegex(ValueError, "changed while being read"):
+                    factory.hash_regular_file(path)
+
+    def test_manifest_reads_reject_oversized_files_and_symlinks(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+            folder = Path(factory.generate("sample", tmp)["target"])
+            manifest = folder / ".factory-manifest.json"
+            saved = manifest.read_bytes()
+            manifest.write_bytes(b"x" * (factory.MAX_MANIFEST_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "Manifest"):
+                factory.verify(str(folder))
+            target = Path(outside) / "manifest.json"; target.write_bytes(saved)
+            manifest.unlink(); manifest.symlink_to(target)
+            with self.assertRaises(ValueError):
+                factory.verify(str(folder))
+
     def test_dry_run_has_manifest_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "sample"
